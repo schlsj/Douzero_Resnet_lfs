@@ -16,6 +16,13 @@ from douzero.env import Env
 Card2Column = {3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7,
                11: 8, 12: 9, 13: 10, 14: 11, 17: 12}
 
+
+def _to_tensor(x):
+    if torch.is_tensor(x):
+        return x.detach().cpu().clone()
+    return torch.tensor(x, device='cpu')
+
+
 NumOnes2Array = {0: np.array([0, 0, 0, 0]),
                  1: np.array([1, 0, 0, 0]),
                  2: np.array([1, 1, 0, 0]),
@@ -36,8 +43,10 @@ log.setLevel(logging.INFO)
 # and learner processes. They are shared tensors in GPU
 Buffers = typing.Dict[str, typing.List[torch.Tensor]]
 
+
 def create_env(flags):
     return Env(flags.objective)
+
 
 def get_batch(b_queues, position, flags, lock):
     """
@@ -55,6 +64,7 @@ def get_batch(b_queues, position, flags, lock):
     }
     del buffer
     return batch
+
 
 def create_optimizers(flags, learner_model):
     """
@@ -74,7 +84,8 @@ def create_optimizers(flags, learner_model):
 def act(i, device, batch_queues, model, flags):
     positions = ['landlord', 'landlord_up', 'landlord_down', 'bidding']
     for pos in positions:
-        model.models[pos].to(torch.device(device if device == "cpu" else ("cuda:"+str(device))))
+        model.models[pos].to(torch.device(
+            device if device == "cpu" else ("cuda:"+str(device))))
     try:
         T = flags.unroll_length
         log.info('Device %s Actor %i started.', str(device), i)
@@ -90,8 +101,10 @@ def act(i, device, batch_queues, model, flags):
         type_buf = {p: [] for p in positions}
         obs_x_batch_buf = {p: [] for p in positions}
 
-        position_index = {"landlord": 31, "landlord_up": 32, "landlord_down": 33}
-        bid_type_index = {"landlord": 41, "landlord_up": 42, "landlord_down": 43}
+        position_index = {"landlord": 31,
+                          "landlord_up": 32, "landlord_down": 33}
+        bid_type_index = {"landlord": 41,
+                          "landlord_up": 42, "landlord_down": 43}
         bid_type_map = {41: "landlord", 42: "landlord_up", 43: "landlord_down"}
 
         position, obs, env_output = env.initial(model, device, flags=flags)
@@ -112,15 +125,19 @@ def act(i, device, batch_queues, model, flags):
             while True:
 
                 with torch.no_grad():
-                    agent_output = model.forward(position, obs['z_batch'], obs['x_batch'], flags=flags)
-                _action_idx = int(agent_output['action'].cpu().detach().numpy())
+                    agent_output = model.forward(
+                        position, obs['z_batch'], obs['x_batch'], flags=flags)
+                _action_idx = int(
+                    agent_output['action'].cpu().detach().numpy())
                 action = obs['legal_actions'][_action_idx]
-                obs_z_buf[position].append(torch.vstack((_cards2tensor(action).unsqueeze(0), env_output['obs_z'])).float())
+                obs_z_buf[position].append(torch.vstack(
+                    (_cards2tensor(action).unsqueeze(0), env_output['obs_z'])).float())
                 # x_batch = torch.cat((env_output['obs_x_no_action'], _cards2tensor(action)), dim=0).float()
                 x_batch = env_output['obs_x_no_action'].float()
                 obs_x_batch_buf[position].append(x_batch)
                 type_buf[position].append(position_index[position])
-                position, obs, env_output = env.step(action, model, device, flags=flags)
+                position, obs, env_output = env.step(
+                    action, model, device, flags=flags)
                 size[position] += 1
                 if env_output['done']:
                     bid_obs_buffer = env_output["begin_buf"]["bid_obs_buffer"]
@@ -132,10 +149,13 @@ def act(i, device, batch_queues, model, flags):
                             done_buf[p].extend([False for _ in range(diff-1)])
                             done_buf[p].append(True)
                             if p != "bidding":
-                                episode_return = env_output['episode_return']["play"][p] if p == 'landlord' else -env_output['episode_return']["play"][p]
-                                episode_return_buf[p].extend([0.0 for _ in range(diff-1)])
+                                episode_return = env_output['episode_return']["play"][p] if p == 'landlord' else - \
+                                    env_output['episode_return']["play"][p]
+                                episode_return_buf[p].extend(
+                                    [0.0 for _ in range(diff-1)])
                                 episode_return_buf[p].append(episode_return)
-                                target_buf[p].extend([episode_return for _ in range(diff)])
+                                target_buf[p].extend(
+                                    [episode_return for _ in range(diff)])
                             else:
                                 offset = len(target_buf[p])
                                 for index in range(diff):
@@ -143,8 +163,10 @@ def act(i, device, batch_queues, model, flags):
                                     if pos == 41:
                                         episode_return = env_output['episode_return']["bid"]["landlord"]
                                     else:
-                                        episode_return = -env_output['episode_return']["bid"][bid_type_map[pos]]
-                                    episode_return_buf[p].append(episode_return)
+                                        episode_return = - \
+                                            env_output['episode_return']["bid"][bid_type_map[pos]]
+                                    episode_return_buf[p].append(
+                                        episode_return)
                                     # print(p, episode_return)
                                     target_buf[p].append(episode_return)
                     break
@@ -152,12 +174,12 @@ def act(i, device, batch_queues, model, flags):
                 if size[p] > T:
                     # print(p, "epr", torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in episode_return_buf[p][:T]]),)
                     batch_queues[p].put({
-                        "done": torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in done_buf[p][:T]]),
-                        "episode_return": torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in episode_return_buf[p][:T]]),
-                        "target": torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in target_buf[p][:T]]),
-                        "obs_z": torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in obs_z_buf[p][:T]]),
-                        "obs_x_batch": torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in obs_x_batch_buf[p][:T]]),
-                        "obs_type": torch.stack([torch.tensor(ndarr, device="cpu") for ndarr in type_buf[p][:T]])
+                        "done": torch.stack([_to_tensor(ndarr) for ndarr in done_buf[p][:T]]),
+                        "episode_return": torch.stack([_to_tensor(ndarr) for ndarr in episode_return_buf[p][:T]]),
+                        "target": torch.stack([_to_tensor(ndarr) for ndarr in target_buf[p][:T]]),
+                        "obs_z": torch.stack([_to_tensor(ndarr) for ndarr in obs_z_buf[p][:T]]),
+                        "obs_x_batch": torch.stack([_to_tensor(ndarr) for ndarr in obs_x_batch_buf[p][:T]]),
+                        "obs_type": torch.stack([_to_tensor(ndarr) for ndarr in type_buf[p][:T]])
                     })
                     done_buf[p] = done_buf[p][T:]
                     episode_return_buf[p] = episode_return_buf[p][T:]
@@ -174,6 +196,7 @@ def act(i, device, batch_queues, model, flags):
         traceback.print_exc()
         print()
         raise e
+
 
 def _cards2tensor(list_cards):
     """
