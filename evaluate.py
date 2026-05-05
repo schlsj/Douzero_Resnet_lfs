@@ -1,19 +1,19 @@
-import os 
+import os
 import argparse
 
 from douzero.evaluation.simulation import evaluate
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-                    'Dou Dizhu Evaluation')
+        'Dou Dizhu Evaluation')
     parser.add_argument('--landlord', type=str,
-            default='baselines/douzero_12/landlord_weights_39762328900.ckpt')
+                        default='baselines/douzero_12/landlord_weights_39762328900.ckpt')
     parser.add_argument('--landlord_up', type=str,
-            default='baselines/douzero_12/landlord_up_weights_39762328900.ckpt')
+                        default='baselines/douzero_12/landlord_up_weights_39762328900.ckpt')
     parser.add_argument('--landlord_down', type=str,
-            default='baselines/douzero_12/landlord_down_weights_39762328900.ckpt')
+                        default='baselines/douzero_12/landlord_down_weights_39762328900.ckpt')
     parser.add_argument('--eval_data', type=str,
-            default='eval_data_1000.pkl')
+                        default='eval_data.pkl')
     parser.add_argument('--num_workers', type=int, default=5)
     parser.add_argument('--gpu_device', type=str, default='0')
     parser.add_argument('--output', type=bool, default=True)
@@ -24,8 +24,8 @@ if __name__ == '__main__':
     args.bid = False
     if args.output or args.bid:
         args.num_workers = 1
-    t = 3
-    frame = 3085177900
+    t = 2
+    frame = 84361600
     adp_frame = 2511184300
     # args.landlord = 'baselines/resnet_landlord_%i.ckpt' % frame
     args.landlord_up = 'baselines/resnet_landlord_up_%i.ckpt' % frame
