@@ -25,7 +25,7 @@ if __name__ == '__main__':
     if args.output or args.bid:
         args.num_workers = 1
     t = 2
-    frame = 84361600
+    frame = 100
     adp_frame = 2511184300
     # args.landlord = 'baselines/resnet_landlord_%i.ckpt' % frame
     args.landlord_up = 'baselines/resnet_landlord_up_%i.ckpt' % frame
